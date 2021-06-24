@@ -54,6 +54,7 @@ import org.apache.ignite.internal.pagemem.PageIdAllocator;
 import org.apache.ignite.internal.pagemem.PageMemory;
 import org.apache.ignite.internal.pagemem.PageUtils;
 import org.apache.ignite.internal.pagemem.impl.PageMemoryNoStoreImpl;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegionMetricsImpl;
 import org.apache.ignite.internal.processors.cache.persistence.DataStructure;
 import org.apache.ignite.internal.processors.cache.persistence.diagnostic.pagelocktracker.PageLockTrackerManager;
@@ -82,6 +83,7 @@ import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.jetbrains.annotations.Nullable;
 import org.jsr166.ConcurrentLinkedHashMap;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_PAGE_LOCK_TRACKER_CHECK_INTERVAL;
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_PAGE_LOCK_TRACKER_TYPE;
@@ -91,6 +93,9 @@ import static org.apache.ignite.internal.processors.database.BPlusTreeSelfTest.T
 import static org.apache.ignite.internal.util.IgniteTree.OperationType.NOOP;
 import static org.apache.ignite.internal.util.IgniteTree.OperationType.PUT;
 import static org.apache.ignite.internal.util.IgniteTree.OperationType.REMOVE;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  */
@@ -812,7 +817,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
     private void doTestRandomInvoke(boolean canGetRow) throws IgniteCheckedException {
         TestTree tree = createTestTree(canGetRow);
 
-        Map<Long,Long> map = new HashMap<>();
+        Map<Long, Long> map = new HashMap<>();
 
         int loops = reuseList == null ? 20_000 : 60_000;
 
@@ -1174,7 +1179,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
     private void doTestRandomPutRemove(boolean canGetRow) throws IgniteCheckedException {
         TestTree tree = createTestTree(canGetRow);
 
-        Map<Long,Long> map = new HashMap<>();
+        Map<Long, Long> map = new HashMap<>();
 
         int loops = reuseList == null ? 100_000 : 300_000;
 
@@ -1212,7 +1217,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
      * @param map Map.
      * @throws IgniteCheckedException If failed.
      */
-    private void assertEqualContents(IgniteTree<Long, Long> tree, Map<Long,Long> map) throws IgniteCheckedException {
+    private void assertEqualContents(IgniteTree<Long, Long> tree, Map<Long, Long> map) throws IgniteCheckedException {
         GridCursor<Long> cursor = tree.find(null, null);
 
         while (cursor.next()) {
@@ -1272,7 +1277,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
 
         TestTree tree = createTestTree(true);
 
-        TreeMap<Long,Long> map = new TreeMap<>();
+        TreeMap<Long, Long> map = new TreeMap<>();
 
         for (int i = 0; i < 20_000 + rnd.nextInt(2 * MAX_PER_PAGE); i++) {
             Long row = (long)rnd.nextInt(40_000);
@@ -1353,7 +1358,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
             items[i] = (long) i;
 
         TestTree testTree = createTestTree(true);
-        TreeMap<Long,Long> goldenMap = new TreeMap<>();
+        TreeMap<Long, Long> goldenMap = new TreeMap<>();
 
         assertEquals(0, testTree.size());
         assertEquals(0, goldenMap.size());
@@ -2510,7 +2515,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
     private void doTestRandomPutRemoveMultithreaded(boolean canGetRow) throws Exception {
         final TestTree tree = createTestTree(canGetRow);
 
-        final Map<Long,Long> map = new ConcurrentHashMap<>();
+        final Map<Long, Long> map = new ConcurrentHashMap<>();
 
         final int loops = reuseList == null ? 20_000 : 60_000;
 
@@ -2568,7 +2573,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
                                 }
                             });
 
-                            map.put(x,x);
+                            map.put(x, x);
                         }
                         else if (op == 3) {
                             tree.invoke(x, null, new IgniteTree.InvokeClosure<Long>() {
@@ -2764,6 +2769,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
             PageLockTrackerManager lockTrackerManager
         ) throws IgniteCheckedException {
             super(
+                createContext(lockTrackerManager),
                 "test",
                 cacheId,
                 null,
@@ -2774,20 +2780,41 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
                 reuseList,
                 new IOVersions<>(new LongInnerIO(canGetRow)),
                 new IOVersions<>(new LongLeafIO()),
-                PageIdAllocator.FLAG_IDX,
-                new FailureProcessor(new GridTestKernalContext(log)) {
-                    @Override public boolean process(FailureContext failureCtx) {
-                        lockTrackerManager.dumpLocksToLog();
-
-                        return true;
-                    }
-                },
-                new TestPageLockListener(lockTrackerManager.createPageLockTracker("testTree"))
+                PageIdAllocator.FLAG_IDX
             );
 
             PageIO.registerTest(latestInnerIO(), latestLeafIO());
 
             initTree(true);
+        }
+
+        /**
+         * Creates a mock {@link GridCacheSharedContext}.
+         */
+        private static GridCacheSharedContext<?, ?> createContext(PageLockTrackerManager lockTrackerManager) {
+            GridCacheSharedContext<?, ?> ctx = mock(GridCacheSharedContext.class, Mockito.RETURNS_MOCKS);
+
+            GridTestKernalContext kernalCtx = new GridTestKernalContext(log);
+
+            kernalCtx.add(new FailureProcessor(kernalCtx) {
+                @Override public boolean process(FailureContext failureCtx) {
+                    lockTrackerManager.dumpLocksToLog();
+
+                    return true;
+                }
+            });
+
+            when(ctx.kernalContext()).thenReturn(kernalCtx);
+
+            when(ctx.diagnostic().pageLockTracker().createPageLockTracker(anyString()))
+                .then(invocation -> {
+                    String structureName = invocation.getArgument(0);
+                    return new TestPageLockListener(lockTrackerManager.createPageLockTracker(structureName));
+                });
+
+            when(ctx.wal()).thenReturn(null);
+
+            return ctx;
         }
 
         /** {@inheritDoc} */
@@ -2819,12 +2846,12 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
          * @param beforeLock Before lock.
          */
         private static void printLocks(SB b, ConcurrentMap<Object, Map<Long, Long>> locks, Map<Object, Long> beforeLock) {
-            for (Map.Entry<Object,Map<Long,Long>> entry : locks.entrySet()) {
+            for (Map.Entry<Object, Map<Long, Long>> entry : locks.entrySet()) {
                 Object thId = entry.getKey();
 
                 Long z = beforeLock.get(thId);
 
-                Set<Map.Entry<Long,Long>> xx = entry.getValue().entrySet();
+                Set<Map.Entry<Long, Long>> xx = entry.getValue().entrySet();
 
                 if (z == null && xx.isEmpty())
                     continue;
@@ -2836,7 +2863,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
 
                 b.a('\n');
 
-                for (Map.Entry<Long,Long> x : xx)
+                for (Map.Entry<Long, Long> x : xx)
                     b.a(" -  ").appendHex(x.getValue()).a("  (").appendHex(x.getKey()).a(")\n");
 
                 b.a('\n');
@@ -2909,7 +2936,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
         }
 
         /** {@inheritDoc} */
-        @Override public Long getLookupRow(BPlusTree<Long,?> tree, long pageAddr, int idx) {
+        @Override public Long getLookupRow(BPlusTree<Long, ?> tree, long pageAddr, int idx) {
             Long row = PageUtils.getLong(pageAddr, offset(idx));
 
             checkNotRemoved(row);
@@ -2976,7 +3003,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
         }
 
         /** {@inheritDoc} */
-        @Override public Long getLookupRow(BPlusTree<Long,?> tree, long pageAddr, int idx) {
+        @Override public Long getLookupRow(BPlusTree<Long, ?> tree, long pageAddr, int idx) {
             return PageUtils.getLong(pageAddr, offset(idx));
         }
     }
@@ -3070,9 +3097,7 @@ public class BPlusTreeSelfTest extends GridCommonAbstractTest {
         /**
          * @param delegate Real implementation of page lock listener.
          */
-        private TestPageLockListener(
-            PageLockListener delegate) {
-
+        private TestPageLockListener(PageLockListener delegate) {
             this.delegate = delegate;
         }
 

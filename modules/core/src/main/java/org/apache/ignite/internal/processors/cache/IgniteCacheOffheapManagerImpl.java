@@ -218,15 +218,13 @@ public class IgniteCacheOffheapManagerImpl implements IgniteCacheOffheapManager 
      * @param cctx Cache context.
      * @throws IgniteCheckedException If failed.
      */
-    protected void initPendingTree(GridCacheContext cctx) throws IgniteCheckedException {
+    protected void initPendingTree(GridCacheContext<?, ?> cctx) throws IgniteCheckedException {
         assert !cctx.group().persistenceEnabled();
 
         if (cctx.affinityNode() && pendingEntries == null) {
             String pendingEntriesTreeName = cctx.name() + "##PendingEntries";
 
             long rootPage = allocateForTree();
-
-            PageLockListener lsnr = ctx.diagnostic().pageLockTracker().createPageLockTracker(pendingEntriesTreeName);
 
             pendingEntries = new PendingEntriesTree(
                 grp,
@@ -235,7 +233,6 @@ public class IgniteCacheOffheapManagerImpl implements IgniteCacheOffheapManager 
                 rootPage,
                 grp.reuseList(),
                 true,
-                lsnr,
                 FLAG_IDX
             );
         }
@@ -1305,8 +1302,6 @@ public class IgniteCacheOffheapManagerImpl implements IgniteCacheOffheapManager 
 
         String dataTreeName = grp.cacheOrGroupName() + "-" + treeName(p);
 
-        PageLockListener lsnr = ctx.diagnostic().pageLockTracker().createPageLockTracker(dataTreeName);
-
         CacheDataTree dataTree = new CacheDataTree(
             grp,
             dataTreeName,
@@ -1314,7 +1309,6 @@ public class IgniteCacheOffheapManagerImpl implements IgniteCacheOffheapManager 
             rowStore,
             rootPage,
             true,
-            lsnr,
             FLAG_IDX
         );
 
@@ -1327,7 +1321,6 @@ public class IgniteCacheOffheapManagerImpl implements IgniteCacheOffheapManager 
             allocateForTree(),
             grp.reuseList(),
             true,
-            ctx.diagnostic().pageLockTracker().createPageLockTracker(logTreeName),
             FLAG_IDX
         );
 

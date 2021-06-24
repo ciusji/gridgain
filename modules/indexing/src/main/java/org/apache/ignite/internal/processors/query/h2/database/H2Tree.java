@@ -33,9 +33,9 @@ import org.apache.ignite.internal.pagemem.FullPageId;
 import org.apache.ignite.internal.pagemem.PageIdAllocator;
 import org.apache.ignite.internal.pagemem.PageIdUtils;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.pagemem.wal.record.PageSnapshot;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.mvcc.MvccUtils;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRowAdapter;
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
@@ -45,7 +45,6 @@ import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusMeta
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIoResolver;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
 import org.apache.ignite.internal.processors.cache.tree.mvcc.data.MvccDataRow;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
 import org.apache.ignite.internal.processors.query.h2.H2RowCache;
 import org.apache.ignite.internal.processors.query.h2.H2Utils;
 import org.apache.ignite.internal.processors.query.h2.database.inlinecolumn.InlineIndexColumnFactory;
@@ -77,7 +76,7 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
     public static final String IGNITE_THROTTLE_INLINE_SIZE_CALCULATION = "IGNITE_THROTTLE_INLINE_SIZE_CALCULATION";
 
     /** Cache context. */
-    private final GridCacheContext cctx;
+    private final GridCacheContext<?, ?> cctx;
 
     /** Owning table. */
     private final GridH2Table table;
@@ -157,7 +156,6 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
      * @param grpId Cache group ID.
      * @param grpName Name of the cache group.
      * @param pageMem Page memory.
-     * @param wal Write ahead log manager.
      * @param globalRmvId Global remove ID counter.
      * @param metaPageId Meta page ID.
      * @param initNew if {@code true} new tree will be initialized,
@@ -170,7 +168,6 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
      * @param affinityKey {@code true} for affinity key.
      * @param mvccEnabled Mvcc flag.
      * @param rowCache Row cache.
-     * @param failureProcessor if the tree is corrupted.
      * @param log Logger.
      * @param stats Statistics holder.
      * @param factory Inline helper factory.
@@ -179,7 +176,8 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
      * @throws IgniteCheckedException If failed.
      */
     public H2Tree(
-        GridCacheContext cctx,
+        GridCacheSharedContext<?, ?> sharedCtx,
+        @Nullable GridCacheContext<?, ?> cctx,
         GridH2Table table,
         String name,
         String idxName,
@@ -189,7 +187,6 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
         int grpId,
         String grpName,
         PageMemory pageMem,
-        IgniteWriteAheadLogManager wal,
         AtomicLong globalRmvId,
         long metaPageId,
         boolean initNew,
@@ -200,7 +197,6 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
         boolean affinityKey,
         boolean mvccEnabled,
         @Nullable H2RowCache rowCache,
-        @Nullable FailureProcessor failureProcessor,
         IgniteLogger log,
         IoStatisticsHolder stats,
         InlineIndexColumnFactory factory,
@@ -208,17 +204,16 @@ public class H2Tree extends BPlusTree<H2Row, H2Row> {
         PageIoResolver pageIoRslvr
     ) throws IgniteCheckedException {
         super(
+            sharedCtx,
             name,
             grpId,
             grpName,
             pageMem,
-            wal,
+            sharedCtx.wal(),
             globalRmvId,
             metaPageId,
             reuseList,
             PageIdAllocator.FLAG_IDX,
-            failureProcessor,
-            null,
             pageIoRslvr
         );
 

@@ -19,13 +19,10 @@ package org.apache.ignite.internal.processors.cache.persistence.metastorage;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
-import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.FLAG_AUX;
 
@@ -43,44 +40,40 @@ public class MetastorageTree extends BPlusTree<MetastorageRow, MetastorageDataRo
     private final int partId;
 
     /**
+     * @param ctx Context.
      * @param pageMem Page memory instance.
-     * @param wal WAL manager.
      * @param globalRmvId Global remove ID.
      * @param metaPageId Meta page ID.
      * @param reuseList Reuse list.
      * @param rowStore Row store.
      * @param initNew Init new flag, if {@code true}, then new tree will be allocated.
-     * @param failureProcessor To call if the tree is corrupted.
      * @throws IgniteCheckedException If failed to initialize.
      */
     public MetastorageTree(
+        GridCacheSharedContext<?, ?> ctx,
         int cacheId,
         String name,
         PageMemory pageMem,
-        IgniteWriteAheadLogManager wal,
         AtomicLong globalRmvId,
         ReuseList reuseList,
         MetastorageRowStore rowStore,
         long metaPageId,
         boolean initNew,
-        @Nullable FailureProcessor failureProcessor,
-        int partId,
-        @Nullable PageLockListener lockLsnr
+        int partId
     ) throws IgniteCheckedException {
         super(
+            ctx,
             name,
             cacheId,
             null,
             pageMem,
-            wal,
+            ctx.wal(),
             globalRmvId,
             metaPageId,
             reuseList,
             MetastorageBPlusIO.INNER_IO_VERSIONS,
             MetastorageBPlusIO.LEAF_IO_VERSIONS,
-            FLAG_AUX,
-            failureProcessor,
-            lockLsnr
+            FLAG_AUX
         );
 
         this.rowStore = rowStore;

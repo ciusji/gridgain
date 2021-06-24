@@ -19,9 +19,8 @@ package org.apache.ignite.internal.processors.cache.persistence.partstorage;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.pagemem.PageUtils;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.IncompleteObject;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
 import org.apache.ignite.internal.processors.cache.persistence.Storable;
@@ -30,7 +29,6 @@ import org.apache.ignite.internal.processors.cache.persistence.tree.io.AbstractD
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.DataPagePayload;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
 
 import static org.apache.ignite.internal.pagemem.PageIdUtils.itemId;
 import static org.apache.ignite.internal.pagemem.PageIdUtils.pageId;
@@ -39,30 +37,27 @@ import static org.apache.ignite.internal.pagemem.PageIdUtils.pageId;
  */
 public class PartitionMetaStorageImpl<T extends Storable> extends AbstractFreeList<T> implements PartitionMetaStorage<T> {
     /**
-     * @param cacheId Cache group id.
+     * @param ctx Context.
+     * @param cacheGrpId Cache group id.
      * @param name Name.
      * @param memPlc Mem policy.
      * @param reuseList Reuse list.
-     * @param wal Wal.
      * @param metaPageId Meta page id.
      * @param initNew Initialize new.
-     * @param lsnr Page lock listener.
      * @param ctx Context.
      */
     public PartitionMetaStorageImpl(
+        GridCacheSharedContext<?, ?> ctx,
         int cacheGrpId,
         String name,
         DataRegion memPlc,
         ReuseList reuseList,
-        IgniteWriteAheadLogManager wal,
         long metaPageId,
         boolean initNew,
-        PageLockListener lsnr,
-        GridKernalContext ctx,
         AtomicLong pageListCacheLimit,
         byte pageFlag
     ) throws IgniteCheckedException {
-        super(cacheGrpId, name, memPlc, reuseList, wal, metaPageId, initNew, lsnr, ctx, pageListCacheLimit, pageFlag);
+        super(ctx, cacheGrpId, name, memPlc, reuseList, metaPageId, initNew, pageListCacheLimit, pageFlag);
     }
 
     /**

@@ -26,14 +26,12 @@ import java.util.concurrent.atomic.AtomicLongArray;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.IgniteSystemProperties;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.managers.communication.GridIoPolicy;
 import org.apache.ignite.internal.metric.IoStatisticsHolder;
 import org.apache.ignite.internal.metric.IoStatisticsHolderNoOp;
 import org.apache.ignite.internal.pagemem.PageIdAllocator;
 import org.apache.ignite.internal.pagemem.PageIdUtils;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.pagemem.wal.record.delta.DataPageSetFreeListPageRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.InitNewPageRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.PageListMetaResetCountRecord;
@@ -44,6 +42,7 @@ import org.apache.ignite.internal.pagemem.wal.record.delta.PagesListSetNextRecor
 import org.apache.ignite.internal.pagemem.wal.record.delta.PagesListSetPreviousRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.RecycleRecord;
 import org.apache.ignite.internal.pagemem.wal.record.delta.RotatedIdPartRecord;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.DataStructure;
 import org.apache.ignite.internal.processors.cache.persistence.freelist.io.PagesListMetaIO;
 import org.apache.ignite.internal.processors.cache.persistence.freelist.io.PagesListNodeIO;
@@ -52,7 +51,6 @@ import org.apache.ignite.internal.processors.cache.persistence.tree.io.IOVersion
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseBag;
 import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageHandler;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
 import org.apache.ignite.internal.util.GridArrays;
 import org.apache.ignite.internal.util.GridLongList;
 import org.apache.ignite.internal.util.typedef.F;
@@ -106,9 +104,6 @@ public abstract class PagesList extends DataStructure {
 
     /** Number of buckets. */
     private final int buckets;
-
-    /** Name (for debug purposes). */
-    protected final String name;
 
     /** Flag to enable/disable onheap list caching. */
     private volatile boolean onheapListCachingEnabled;
@@ -179,7 +174,7 @@ public abstract class PagesList extends DataStructure {
             int newBucket = getBucketIndex(freeSpace);
 
             if (newBucket != oldBucket && log.isDebugEnabled()) {
-                log.debug("Bucket changed when moving from heap to PageMemory [list=" + name + ", oldBucket=" + oldBucket +
+                log.debug("Bucket changed when moving from heap to PageMemory [list=" + name() + ", oldBucket=" + oldBucket +
                     ", newBucket=" + newBucket + ", pageId=" + pageId + ']');
             }
 
@@ -195,24 +190,20 @@ public abstract class PagesList extends DataStructure {
      * @param name Name (for debug purpose).
      * @param pageMem Page memory.
      * @param buckets Number of buckets.
-     * @param wal Write ahead log manager.
      * @param metaPageId Metadata page ID.
      * @param pageFlag Default flag value for allocated pages.
      */
     protected PagesList(
+        GridCacheSharedContext<?, ?> ctx,
         int cacheGrpId,
         String name,
         PageMemory pageMem,
         int buckets,
-        IgniteWriteAheadLogManager wal,
         long metaPageId,
-        PageLockListener lockLsnr,
-        GridKernalContext ctx,
         byte pageFlag
     ) {
-        super(cacheGrpId, null, pageMem, wal, lockLsnr, DEFAULT_PAGE_IO_RESOLVER, pageFlag);
+        super(ctx, name, cacheGrpId, null, pageMem, ctx.wal(), DEFAULT_PAGE_IO_RESOLVER, pageFlag);
 
-        this.name = name;
         this.buckets = buckets;
         this.metaPageId = metaPageId;
 
@@ -220,7 +211,7 @@ public abstract class PagesList extends DataStructure {
 
         onheapListCachingEnabled = isCachingApplicable();
 
-        log = ctx.log(PagesList.class);
+        log = ctx.kernalContext().log(PagesList.class);
     }
 
     /**
@@ -390,7 +381,7 @@ public abstract class PagesList extends DataStructure {
 
                 if (pages != null) {
                     if (log.isDebugEnabled()) {
-                        log.debug("Move pages from heap to PageMemory [list=" + name + ", bucket=" + bucket +
+                        log.debug("Move pages from heap to PageMemory [list=" + name() + ", bucket=" + bucket +
                             ", pages=" + pages + ']');
                     }
 
@@ -645,7 +636,7 @@ public abstract class PagesList extends DataStructure {
                 Stripe[] tails = getBucket(bucket);
 
                 if (log.isDebugEnabled()) {
-                    log.debug("Update tail [list=" + name + ", bucket=" + bucket + ", oldTailId=" + oldTailId +
+                    log.debug("Update tail [list=" + name() + ", bucket=" + bucket + ", oldTailId=" + oldTailId +
                         ", newTailId=" + newTailId + ", tails=" + Arrays.toString(tails));
                 }
 
@@ -833,7 +824,7 @@ public abstract class PagesList extends DataStructure {
             putDataPage(getBucketCache(bucket, true), dataId, dataPage, dataAddr, bucket)) {
             // Successfully put page to the onheap pages list cache.
             if (log.isDebugEnabled()) {
-                log.debug("Put page to pages list cache [list=" + name + ", bucket=" + bucket +
+                log.debug("Put page to pages list cache [list=" + name() + ", bucket=" + bucket +
                     ", dataId=" + dataId + ']');
             }
 
@@ -898,7 +889,7 @@ public abstract class PagesList extends DataStructure {
 
                     if (ok) {
                         if (log.isDebugEnabled()) {
-                            log.debug("Put page to pages list [list=" + name + ", bucket=" + bucket +
+                            log.debug("Put page to pages list [list=" + name() + ", bucket=" + bucket +
                                 ", dataId=" + dataId + ", tailId=" + tailId + ']');
                         }
 
@@ -1318,7 +1309,7 @@ public abstract class PagesList extends DataStructure {
             decrementBucketSize(bucket);
 
             if (log.isDebugEnabled()) {
-                log.debug("Take page from pages list cache [list=" + name + ", bucket=" + bucket +
+                log.debug("Take page from pages list cache [list=" + name() + ", bucket=" + bucket +
                     ", pageId=" + pageId + ']');
             }
 
@@ -1463,7 +1454,7 @@ public abstract class PagesList extends DataStructure {
                 }
 
                 if (log.isDebugEnabled()) {
-                    log.debug("Take page from pages list [list=" + name + ", bucket=" + bucket +
+                    log.debug("Take page from pages list [list=" + name() + ", bucket=" + bucket +
                         ", dataPageId=" + dataPageId + ", tailId=" + tailId + ']');
                 }
 
@@ -1608,14 +1599,14 @@ public abstract class PagesList extends DataStructure {
         final long pageId = dataIO.getFreeListPageId(dataAddr);
 
         if (pageId == 0L) { // Page cached in onheap list.
-            assert isCachingApplicable() : "pageId==0L, but caching is not applicable for this pages list: " + name;
+            assert isCachingApplicable() : "pageId==0L, but caching is not applicable for this pages list: " + name();
 
             PagesCache pagesCache = getBucketCache(bucket, false);
 
             // Pages cache can be null here if page was taken for put from free list concurrently.
             if (pagesCache == null || !pagesCache.removePage(dataId)) {
                 if (log.isDebugEnabled()) {
-                    log.debug("Remove page from pages list cache failed [list=" + name + ", bucket=" + bucket +
+                    log.debug("Remove page from pages list cache failed [list=" + name() + ", bucket=" + bucket +
                         ", dataId=" + dataId + "]: " + ((pagesCache == null) ? "cache is null" : "page not found"));
                 }
 
@@ -1625,7 +1616,7 @@ public abstract class PagesList extends DataStructure {
             decrementBucketSize(bucket);
 
             if (log.isDebugEnabled()) {
-                log.debug("Remove page from pages list cache [list=" + name + ", bucket=" + bucket +
+                log.debug("Remove page from pages list cache [list=" + name() + ", bucket=" + bucket +
                     ", dataId=" + dataId + ']');
             }
 
@@ -1633,7 +1624,7 @@ public abstract class PagesList extends DataStructure {
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Remove page from pages list [list=" + name + ", bucket=" + bucket + ", dataId=" + dataId +
+            log.debug("Remove page from pages list [list=" + name() + ", bucket=" + bucket + ", dataId=" + dataId +
                 ", pageId=" + pageId + ']');
         }
 
@@ -1941,13 +1932,6 @@ public abstract class PagesList extends DataStructure {
         // Ok to have a race here, see the field javadoc.
         if (!pageCacheChanged)
             pageCacheChanged = true;
-    }
-
-    /**
-     * Pages list name.
-     */
-    public String name() {
-        return name;
     }
 
     /**

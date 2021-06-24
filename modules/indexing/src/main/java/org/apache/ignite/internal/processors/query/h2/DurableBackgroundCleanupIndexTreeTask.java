@@ -31,7 +31,6 @@ import org.apache.ignite.internal.metric.IoStatisticsHolder;
 import org.apache.ignite.internal.metric.IoStatisticsHolderIndex;
 import org.apache.ignite.internal.pagemem.PageIdUtils;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
 import org.apache.ignite.internal.processors.cache.IgniteCacheOffheapManager;
 import org.apache.ignite.internal.processors.cache.persistence.RootPage;
@@ -40,7 +39,6 @@ import org.apache.ignite.internal.processors.cache.persistence.metastorage.pendi
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIoResolver;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
 import org.apache.ignite.internal.processors.query.h2.database.H2Tree;
 import org.apache.ignite.internal.processors.query.h2.database.inlinecolumn.InlineIndexColumnFactory;
 import org.apache.ignite.internal.processors.query.h2.opt.GridH2Table;
@@ -240,7 +238,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
                         grpId,
                         cacheGrpName,
                         pageMem,
-                        ctx.cache().context().wal(),
                         offheap.globalRemoveId(),
                         rootPage,
                         false,
@@ -251,7 +248,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
                         false,
                         false,
                         null,
-                        ctx.failure(),
                         null,
                         stats,
                         null,
@@ -270,9 +266,7 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
         ctx.cache().context().database().checkpointReadLock();
 
         try {
-            for (int i = 0; i < trees0.size(); i++) {
-                BPlusTree tree = trees0.get(i);
-
+            for (BPlusTree<?, ?> tree : trees0) {
                 try {
                     tree.destroy(null, true);
                 }
@@ -345,7 +339,7 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
         /**
          * Constructor.
          *
-         * @param grpCtx                  Cache group context.
+         * @param grpCtx                  Context.
          * @param table                   Owning table.
          * @param name                    Name of the tree.
          * @param idxName                 Name of the index.
@@ -355,7 +349,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
          * @param grpId                   Cache group ID.
          * @param grpName                 Name of the cache group.
          * @param pageMem                 Page memory.
-         * @param wal                     Write ahead log manager.
          * @param globalRmvId             Global remove ID counter.
          * @param metaPageId              Meta page ID.
          * @param initNew                 if {@code true} new tree will be initialized, else meta page info will be read.
@@ -366,7 +359,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
          * @param affinityKey             {@code true} for affinity key.
          * @param mvccEnabled             Mvcc flag.
          * @param rowCache                Row cache.
-         * @param failureProcessor        if the tree is corrupted.
          * @param log                     Logger.
          * @param stats                   Statistics holder.
          * @param factory                 Inline helper factory.
@@ -385,7 +377,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
             int grpId,
             String grpName,
             PageMemory pageMem,
-            IgniteWriteAheadLogManager wal,
             AtomicLong globalRmvId,
             long metaPageId,
             boolean initNew,
@@ -396,12 +387,12 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
             boolean affinityKey,
             boolean mvccEnabled,
             @Nullable H2RowCache rowCache,
-            @Nullable FailureProcessor failureProcessor,
             IgniteLogger log, IoStatisticsHolder stats,
             InlineIndexColumnFactory factory,
             int configuredInlineSize,
             PageIoResolver pageIoRslvr) throws IgniteCheckedException {
             super(
+                grpCtx.shared(),
                 null,
                 table,
                 name,
@@ -412,7 +403,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
                 grpId,
                 grpName,
                 pageMem,
-                wal,
                 globalRmvId,
                 metaPageId,
                 initNew,
@@ -423,7 +413,6 @@ public class DurableBackgroundCleanupIndexTreeTask implements DurableBackgroundT
                 affinityKey,
                 mvccEnabled,
                 rowCache,
-                failureProcessor,
                 log,
                 stats,
                 factory,

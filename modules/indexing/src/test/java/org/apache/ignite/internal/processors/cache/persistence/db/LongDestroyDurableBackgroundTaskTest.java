@@ -45,7 +45,6 @@ import org.apache.ignite.failure.StopNodeFailureHandler;
 import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.metric.IoStatisticsHolder;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.GridCacheDatabaseSharedManager;
@@ -56,7 +55,6 @@ import org.apache.ignite.internal.processors.cache.persistence.metastorage.pendi
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIoResolver;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.LongListReuseBag;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
 import org.apache.ignite.internal.processors.query.h2.H2RowCache;
 import org.apache.ignite.internal.processors.query.h2.database.H2Tree;
 import org.apache.ignite.internal.processors.query.h2.database.H2TreeIndex;
@@ -735,6 +733,7 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
         /**
          * Constructor.
          *
+         * @param sharedCtx Shared cache context.
          * @param cctx Cache context.
          * @param table Owning table.
          * @param name Tree name.
@@ -745,7 +744,6 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
          * @param grpId Cache group ID.
          * @param grpName
          * @param pageMem Page memory.
-         * @param wal Write ahead log manager.
          * @param globalRmvId
          * @param metaPageId Meta page ID.
          * @param initNew Initialize new index.
@@ -756,13 +754,13 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
          * @param affinityKey {@code true} for affinity key.
          * @param mvccEnabled Mvcc flag.
          * @param rowCache Row cache.
-         * @param failureProcessor if the tree is corrupted.
          * @param log Logger.
          * @param stats Statistics holder.
          * @throws IgniteCheckedException If failed.
          */
         public H2TreeTest(
-            GridCacheContext cctx,
+            GridCacheSharedContext<?, ?> sharedCtx,
+            GridCacheContext<?, ?> cctx,
             GridH2Table table,
             String name,
             String idxName,
@@ -772,7 +770,6 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
             int grpId,
             String grpName,
             PageMemory pageMem,
-            IgniteWriteAheadLogManager wal,
             AtomicLong globalRmvId,
             long metaPageId,
             boolean initNew,
@@ -783,7 +780,6 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
             boolean affinityKey,
             boolean mvccEnabled,
             @Nullable H2RowCache rowCache,
-            @Nullable FailureProcessor failureProcessor,
             IgniteLogger log,
             IoStatisticsHolder stats,
             InlineIndexColumnFactory factory,
@@ -791,6 +787,7 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
             PageIoResolver pageIoRslvr
         ) throws IgniteCheckedException {
             super(
+                sharedCtx,
                 cctx,
                 table,
                 name,
@@ -801,7 +798,6 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
                 grpId,
                 grpName,
                 pageMem,
-                wal,
                 globalRmvId,
                 metaPageId,
                 initNew,
@@ -812,7 +808,6 @@ public class LongDestroyDurableBackgroundTaskTest extends GridCommonAbstractTest
                 affinityKey,
                 mvccEnabled,
                 rowCache,
-                failureProcessor,
                 log,
                 stats,
                 factory,

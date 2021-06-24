@@ -21,8 +21,8 @@ import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.internal.pagemem.PageIdUtils;
 import org.apache.ignite.internal.pagemem.PageMemory;
 import org.apache.ignite.internal.pagemem.PageUtils;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.processors.cache.CacheGroupContext;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusInnerIO;
@@ -30,9 +30,6 @@ import org.apache.ignite.internal.processors.cache.persistence.tree.io.BPlusLeaf
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.IOVersions;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
-import org.jetbrains.annotations.Nullable;
 
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.FLAG_AUX;
 import static org.apache.ignite.internal.pagemem.PageIdAllocator.FLAG_DATA;
@@ -69,7 +66,7 @@ public class LinkMap {
         long metaPageId,
         boolean initNew
     ) throws IgniteCheckedException {
-        this(ctx.groupId(), ctx.name(), pageMem, metaPageId, initNew);
+        this(ctx.shared(), ctx.groupId(), ctx.name(), pageMem, metaPageId, initNew);
     }
 
     /**
@@ -80,6 +77,7 @@ public class LinkMap {
      * @param initNew If tree should be (re)created.
      */
     public LinkMap(
+        GridCacheSharedContext<?, ?> ctx,
         int grpId,
         String grpName,
         PageMemory pageMem,
@@ -87,18 +85,16 @@ public class LinkMap {
         boolean initNew
     ) throws IgniteCheckedException {
         tree = new LinkTree(
+            ctx,
             "link-map",
             grpId,
             grpName,
             pageMem,
-            null,
             new AtomicLong(),
             metaPageId,
             null,
             (IOVersions<LinkMappingInnerIO>)INNER_IO_VERSIONS,
             (IOVersions<LinkMappingLeafIO>)LEAF_IO_VERSIONS,
-            null,
-            null,
             initNew
         );
     }
@@ -125,40 +121,45 @@ public class LinkMap {
         return found.getNewLink();
     }
 
+    /**
+     * Frees the internal allocated resources.
+     */
+    public void close() {
+        tree.close();
+    }
+
     /** */
     private static class LinkTree extends BPlusTree<LinkMapping, LinkMapping> {
+
         /**
+         * @param ctx Context.
          * @param name Tree name.
          * @param cacheGrpId Cache group ID.
          * @param cacheGrpName Cache group name.
          * @param pageMem Page memory.
-         * @param wal Write ahead log manager.
          * @param globalRmvId Remove ID.
          * @param metaPageId Meta page ID.
          * @param reuseList Reuse list.
          * @param innerIos Inner IO versions.
          * @param leafIos Leaf IO versions.
-         * @param failureProcessor if the tree is corrupted.
          * @param initNew If tree should be (re)created.
          *
          * @throws IgniteCheckedException If failed.
          */
         protected LinkTree(
-           String name,
-           int cacheGrpId,
-           String cacheGrpName,
-           PageMemory pageMem,
-           IgniteWriteAheadLogManager wal,
-           AtomicLong globalRmvId,
-           long metaPageId,
-           ReuseList reuseList,
-           IOVersions<? extends BPlusInnerIO<LinkMapping>> innerIos,
-           IOVersions<? extends BPlusLeafIO<LinkMapping>> leafIos,
-           @Nullable FailureProcessor failureProcessor,
-           @Nullable PageLockListener lockLsnr,
-           boolean initNew
+            GridCacheSharedContext<?, ?> ctx,
+            String name,
+            int cacheGrpId,
+            String cacheGrpName,
+            PageMemory pageMem,
+            AtomicLong globalRmvId,
+            long metaPageId,
+            ReuseList reuseList,
+            IOVersions<? extends BPlusInnerIO<LinkMapping>> innerIos,
+            IOVersions<? extends BPlusLeafIO<LinkMapping>> leafIos,
+            boolean initNew
         ) throws IgniteCheckedException {
-            super(name, cacheGrpId, cacheGrpName, pageMem, wal, globalRmvId, metaPageId, reuseList, innerIos, leafIos, FLAG_AUX, failureProcessor, lockLsnr);
+            super(ctx, name, cacheGrpId, cacheGrpName, pageMem, null, globalRmvId, metaPageId, reuseList, innerIos, leafIos, FLAG_AUX);
 
             PageIO.registerTest(latestInnerIO(), latestLeafIO());
 

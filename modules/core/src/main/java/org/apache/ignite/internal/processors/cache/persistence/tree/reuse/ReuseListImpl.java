@@ -19,13 +19,11 @@ package org.apache.ignite.internal.processors.cache.persistence.tree.reuse;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.GridKernalContext;
-import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
-import org.apache.ignite.internal.processors.cache.persistence.freelist.PagesList;
 import org.apache.ignite.internal.metric.IoStatisticsHolderNoOp;
+import org.apache.ignite.internal.pagemem.PageMemory;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
+import org.apache.ignite.internal.processors.cache.persistence.freelist.PagesList;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
 
 /**
  * Reuse list.
@@ -42,36 +40,32 @@ public class ReuseListImpl extends PagesList implements ReuseList {
     private final PagesCache bucketCache;
 
     /**
+     * @param ctx Context.
      * @param cacheId   Cache ID.
      * @param name Name (for debug purpose).
      * @param pageMem   Page memory.
-     * @param wal       Write ahead log manager.
      * @param metaPageId Metadata page ID.
      * @param initNew {@code True} if new metadata should be initialized.
      * @param pageFlag Default flag value for allocated pages.
      * @throws IgniteCheckedException If failed.
      */
     public ReuseListImpl(
+        GridCacheSharedContext<?, ?> ctx,
         int cacheId,
         String name,
         PageMemory pageMem,
-        IgniteWriteAheadLogManager wal,
         long metaPageId,
         boolean initNew,
-        PageLockListener lockLsnr,
-        GridKernalContext ctx,
         AtomicLong pageListCacheLimit,
         byte pageFlag
     ) throws IgniteCheckedException {
         super(
+            ctx,
             cacheId,
             name,
             pageMem,
             1,
-            wal,
             metaPageId,
-            lockLsnr,
-            ctx,
             pageFlag
         );
 
@@ -131,6 +125,6 @@ public class ReuseListImpl extends PagesList implements ReuseList {
 
     /** {@inheritDoc} */
     @Override public String toString() {
-        return "ReuseList [name=" + name + ']';
+        return "ReuseList [name=" + name() + ']';
     }
 }

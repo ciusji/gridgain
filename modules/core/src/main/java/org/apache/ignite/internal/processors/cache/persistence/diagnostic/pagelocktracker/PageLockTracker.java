@@ -237,8 +237,10 @@ public abstract class PageLockTracker<T extends PageLockDump> implements PageLoc
         return invalidCtx;
     }
 
-    /** */
-    protected void free() {
+    /** {@inheritDoc} */
+    @Override public void close() {
+        PageLockListener.super.close();
+
         pages.free();
     }
 

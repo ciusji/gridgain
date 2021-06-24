@@ -18,13 +18,11 @@ package org.apache.ignite.internal.processors.cache.persistence.freelist;
 
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.metric.IoStatisticsHolder;
 import org.apache.ignite.internal.pagemem.PageIdUtils;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
-import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
 import org.apache.ignite.internal.util.typedef.internal.U;
 
 /**
@@ -35,33 +33,28 @@ public class CacheFreeList extends AbstractFreeList<CacheDataRow> {
      * @param cacheGrpId Cache group id.
      * @param name Name.
      * @param dataRegion Data region.
-     * @param wal Wal.
      * @param metaPageId Meta page id.
      * @param initNew Initialize new.
      * @param pageFlag Default flag value for allocated pages.
      */
     public CacheFreeList(
+        GridCacheSharedContext<?, ?> ctx,
         int cacheGrpId,
         String name,
         DataRegion dataRegion,
-        IgniteWriteAheadLogManager wal,
         long metaPageId,
         boolean initNew,
-        PageLockListener lockLsnr,
-        GridKernalContext ctx,
         AtomicLong pageListCacheLimit,
         byte pageFlag
     ) throws IgniteCheckedException {
         super(
+            ctx,
             cacheGrpId,
             name,
             dataRegion,
             null,
-            wal,
             metaPageId,
             initNew,
-            lockLsnr,
-            ctx,
             pageListCacheLimit,
             pageFlag
         );
@@ -74,10 +67,5 @@ public class CacheFreeList extends AbstractFreeList<CacheDataRow> {
         assert row.key().partition() == PageIdUtils.partId(row.link()) :
             "Constructed a link with invalid partition ID [partId=" + row.key().partition() +
                 ", link=" + U.hexLong(row.link()) + ']';
-    }
-
-    /** {@inheritDoc} */
-    @Override public String toString() {
-        return "FreeList [name=" + name + ']';
     }
 }

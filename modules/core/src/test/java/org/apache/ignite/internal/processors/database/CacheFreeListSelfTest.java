@@ -39,6 +39,7 @@ import org.apache.ignite.internal.pagemem.impl.PageMemoryNoStoreImpl;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.CacheObjectContext;
 import org.apache.ignite.internal.processors.cache.CacheObjectValueContext;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.persistence.CacheDataRow;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegion;
@@ -56,6 +57,9 @@ import org.apache.ignite.testframework.junits.GridTestKernalContext;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.jetbrains.annotations.Nullable;
 import org.junit.Test;
+
+import static org.mockito.Mockito.RETURNS_MOCKS;
+import static org.mockito.Mockito.mock;
 
 /**
  *
@@ -345,7 +349,7 @@ public class CacheFreeListSelfTest extends GridCommonAbstractTest {
      * @return Free list.
      * @throws Exception If failed.
      */
-    protected FreeList createFreeList(int pageSize) throws Exception {
+    private FreeList<?> createFreeList(int pageSize) throws Exception {
         DataRegionConfiguration plcCfg = new DataRegionConfiguration()
             .setInitialSize(1024 * MB)
             .setMaxSize(1024 * MB);
@@ -360,15 +364,15 @@ public class CacheFreeListSelfTest extends GridCommonAbstractTest {
 
         DataRegion dataRegion = new DataRegion(pageMem, plcCfg, regionMetrics, new NoOpPageEvictionTracker());
 
+        GridCacheSharedContext<?, ?> ctx = mock(GridCacheSharedContext.class, RETURNS_MOCKS);
+
         return new CacheFreeList(
+            ctx,
             1,
             "freelist",
             dataRegion,
-            null,
             metaPageId,
             true,
-            null,
-            new GridTestKernalContext(log),
             null,
             PageIdAllocator.FLAG_IDX
         );

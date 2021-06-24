@@ -19,17 +19,19 @@ package org.apache.ignite.internal.processors.database;
 import java.util.HashSet;
 import java.util.Set;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.pagemem.PageIdAllocator;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIO;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseListImpl;
 import org.apache.ignite.internal.processors.cache.persistence.tree.util.PageLockListener;
-import org.apache.ignite.testframework.junits.GridTestKernalContext;
+import org.mockito.Mockito;
 
 import static org.apache.ignite.internal.pagemem.PageIdUtils.effectivePageId;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Test with reuse list.
@@ -42,15 +44,21 @@ public class BPlusTreeReuseSelfTest extends BPlusTreeSelfTest {
         long rootId,
         boolean initNew
     ) throws IgniteCheckedException {
-        return new TestReuseList(
-            cacheId,
-            "test",
-            pageMem,
-            null,
-            rootId,
-            initNew,
-            new GridTestKernalContext(log)
-        );
+        return new TestReuseList(createContext(), cacheId, "test", pageMem, rootId, initNew);
+    }
+
+    /**
+     * Creates a mock {@link GridCacheSharedContext}.
+     */
+    private static GridCacheSharedContext<?, ?> createContext() {
+        GridCacheSharedContext<?, ?> ctx = mock(GridCacheSharedContext.class, Mockito.RETURNS_MOCKS);
+
+        when(ctx.diagnostic().pageLockTracker().createPageLockTracker(anyString()))
+            .thenReturn(new TestPageLockListener());
+
+        when(ctx.wal()).thenReturn(null);
+
+        return ctx;
     }
 
     /** {@inheritDoc} */
@@ -64,26 +72,23 @@ public class BPlusTreeReuseSelfTest extends BPlusTreeSelfTest {
      *
      */
     private static class TestReuseList extends ReuseListImpl {
-
         /**
          * @param cacheId    Cache ID.
          * @param name       Name (for debug purpose).
          * @param pageMem    Page memory.
-         * @param wal        Write ahead log manager.
          * @param metaPageId Metadata page ID.
          * @param initNew    {@code True} if new metadata should be initialized.
          * @throws IgniteCheckedException If failed.
          */
         public TestReuseList(
+            GridCacheSharedContext<?, ?> ctx,
             int cacheId,
             String name,
             PageMemory pageMem,
-            IgniteWriteAheadLogManager wal,
             long metaPageId,
-            boolean initNew,
-            GridKernalContext ctx
+            boolean initNew
         ) throws IgniteCheckedException {
-            super(cacheId, name, pageMem, wal, metaPageId, initNew, new TestPageLockListener(), ctx, null, PageIdAllocator.FLAG_IDX);
+            super(ctx, cacheId, name, pageMem, metaPageId, initNew, null, PageIdAllocator.FLAG_IDX);
         }
 
         /**

@@ -39,8 +39,8 @@ import org.apache.ignite.internal.metric.IoStatisticsHolder;
 import org.apache.ignite.internal.metric.IoStatisticsHolderIndex;
 import org.apache.ignite.internal.metric.IoStatisticsType;
 import org.apache.ignite.internal.pagemem.PageMemory;
-import org.apache.ignite.internal.pagemem.wal.IgniteWriteAheadLogManager;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.IgniteCacheOffheapManager;
 import org.apache.ignite.internal.processors.cache.mvcc.MvccSnapshot;
 import org.apache.ignite.internal.processors.cache.persistence.IgniteCacheDatabaseSharedManager;
@@ -49,7 +49,6 @@ import org.apache.ignite.internal.processors.cache.persistence.metastorage.pendi
 import org.apache.ignite.internal.processors.cache.persistence.tree.BPlusTree;
 import org.apache.ignite.internal.processors.cache.persistence.tree.io.PageIoResolver;
 import org.apache.ignite.internal.processors.cache.persistence.tree.reuse.ReuseList;
-import org.apache.ignite.internal.processors.failure.FailureProcessor;
 import org.apache.ignite.internal.processors.query.GridQueryTypeDescriptor;
 import org.apache.ignite.internal.processors.query.IgniteSQLException;
 import org.apache.ignite.internal.processors.query.h2.DurableBackgroundCleanupIndexTreeTask;
@@ -153,7 +152,7 @@ public class H2TreeIndex extends H2TreeIndexBase {
     private final GridMessageListener msgLsnr;
 
     /** */
-    private final CIX2<ClusterNode,Message> locNodeHnd = new CIX2<ClusterNode,Message>() {
+    private final CIX2<ClusterNode, Message> locNodeHnd = new CIX2<ClusterNode, Message>() {
         @Override public void applyx(ClusterNode locNode, Message msg) {
             onMessage0(locNode.id(), msg);
         }
@@ -326,6 +325,7 @@ public class H2TreeIndex extends H2TreeIndexBase {
                 RootPage page = getMetaPage(offheap, cctx, treeName, i);
 
                 segments[i] = h2TreeFactory.create(
+                    cctx.shared(),
                     cctx,
                     tbl,
                     treeName,
@@ -336,7 +336,6 @@ public class H2TreeIndex extends H2TreeIndexBase {
                     cctx.groupId(),
                     cctx.group().name(),
                     pageMemory,
-                    cctx.shared().wal(),
                     offheap.globalRemoveId(),
                     page.pageId().pageId(),
                     page.isAllocated(),
@@ -347,7 +346,6 @@ public class H2TreeIndex extends H2TreeIndexBase {
                     affinityKey,
                     cctx.mvccEnabled(),
                     rowCache,
-                    cctx.kernalContext().failure(),
                     log,
                     stats,
                     idxHelperFactory,
@@ -1038,10 +1036,12 @@ public class H2TreeIndex extends H2TreeIndexBase {
     /**
      * Interface for {@link H2Tree} factory class.
      */
+    @FunctionalInterface
     public interface H2TreeFactory {
         /** */
         public H2Tree create(
-            GridCacheContext cctx,
+            GridCacheSharedContext<?, ?> sharedCtx,
+            GridCacheContext<?, ?> cctx,
             GridH2Table table,
             String name,
             String idxName,
@@ -1051,7 +1051,6 @@ public class H2TreeIndex extends H2TreeIndexBase {
             int grpId,
             String grpName,
             PageMemory pageMem,
-            IgniteWriteAheadLogManager wal,
             AtomicLong globalRmvId,
             long metaPageId,
             boolean initNew,
@@ -1062,7 +1061,6 @@ public class H2TreeIndex extends H2TreeIndexBase {
             boolean affinityKey,
             boolean mvccEnabled,
             @Nullable H2RowCache rowCache,
-            @Nullable FailureProcessor failureProcessor,
             IgniteLogger log,
             IoStatisticsHolder stats,
             InlineIndexColumnFactory factory,

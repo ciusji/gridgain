@@ -29,6 +29,7 @@ import org.apache.ignite.internal.pagemem.FullPageId;
 import org.apache.ignite.internal.pagemem.PageIdAllocator;
 import org.apache.ignite.internal.pagemem.PageMemory;
 import org.apache.ignite.internal.pagemem.impl.PageMemoryNoStoreImpl;
+import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.persistence.DataRegionMetricsImpl;
 import org.apache.ignite.internal.processors.cache.persistence.IndexStorageImpl;
 import org.apache.ignite.internal.processors.cache.persistence.RootPage;
@@ -36,6 +37,10 @@ import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.testframework.junits.GridTestKernalContext;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.junit.Test;
+
+import static org.mockito.Mockito.RETURNS_MOCKS;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -50,9 +55,19 @@ public class IndexStorageSelfTest extends GridCommonAbstractTest {
     /** */
     private static final char[] ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
 
+    /** */
+    private final GridCacheSharedContext<?, ?> ctx = mock(GridCacheSharedContext.class, RETURNS_MOCKS);
+
     /** {@inheritDoc} */
     @Override protected void beforeTestsStarted() throws Exception {
         allocationPath = U.resolveWorkDirectory(U.defaultWorkDirectory(), "pagemem", false);
+    }
+
+    /** {@inheritDoc} */
+    @Override protected void beforeTest() throws Exception {
+        super.beforeTest();
+
+        when(ctx.wal()).thenReturn(null);
     }
 
     /**
@@ -99,8 +114,9 @@ public class IndexStorageSelfTest extends GridCommonAbstractTest {
 
                 if (metaStore == null) {
                     metaStore = new IndexStorageImpl(
+                        ctx,
+                        "indexStorageTree",
                         mem,
-                        null,
                         new AtomicLong(),
                         cacheId,
                         false,
@@ -108,9 +124,7 @@ public class IndexStorageSelfTest extends GridCommonAbstractTest {
                         PageMemory.FLAG_IDX,
                         null,
                         mem.allocatePage(cacheId, PageIdAllocator.INDEX_PARTITION, PageMemory.FLAG_IDX),
-                        true,
-                        null,
-                        null
+                        true
                     );
 
                     storeMap.put(cacheId, metaStore);
