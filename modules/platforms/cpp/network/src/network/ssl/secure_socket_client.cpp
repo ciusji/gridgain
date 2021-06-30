@@ -146,6 +146,14 @@ namespace ignite
                 if (X509_V_OK != res)
                     ThrowSecureError("Certificate chain verification failed: " + GetSslError(ssl0, res));
 
+                res = WaitOnSocket(ssl, timeout, false);
+
+                if (res == WaitResult::TIMEOUT)
+                    return false;
+
+                if (res != WaitResult::SUCCESS)
+                    ThrowSecureError("Error while establishing secure connection: " + GetSslError(ssl0, res));
+
                 guard.Release();
 
                 return true;
@@ -174,6 +182,7 @@ namespace ignite
 
                 do {
                     res = sslGateway.SSL_write_(ssl0, data, static_cast<int>(size));
+                    std::cout << __FUNCTION__ << ": " << "size=" << size << std::endl;
 
                     int waitRes = WaitOnSocketIfNeeded(res, ssl, timeout);
                     if (waitRes <= 0)
@@ -206,6 +215,7 @@ namespace ignite
 
                 do {
                     res = sslGateway.SSL_read_(ssl0, buffer, static_cast<int>(size));
+                    std::cout << __FUNCTION__ << ": " << "size=" << size << std::endl;
 
                     int waitRes = WaitOnSocketIfNeeded(res, ssl, timeout);
                     if (waitRes <= 0)
@@ -412,14 +422,18 @@ namespace ignite
 
                 SSL* ssl0 = reinterpret_cast<SSL*>(ssl);
 
+                std::cout << __FUNCTION__ << ": " << "res=" << res << std::endl;
                 if (res <= 0)
                 {
                     int err = sslGateway.SSL_get_error_(ssl0, res);
+                    std::cout << __FUNCTION__ << ": " << "err=" << err << std::endl;
                     if (IsActualError(err))
                         return res;
 
                     int want = sslGateway.SSL_want_(ssl0);
                     int waitRes = WaitOnSocket(ssl, timeout, want == SSL_READING);
+                    std::cout << __FUNCTION__ << ": " << "waitRes=" << waitRes << std::endl;
+
                     if (waitRes < 0 || waitRes == WaitResult::TIMEOUT)
                         return waitRes;
                 }
