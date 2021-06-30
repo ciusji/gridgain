@@ -34,6 +34,12 @@
     </bean>
 
     <bean parent="queries.cfg">
+        <property name="gridLogger">
+            <bean class="org.apache.ignite.logger.log4j.Log4JLogger">
+                <constructor-arg type="java.lang.String" value="${IGNITE_NATIVE_TEST_ODBC_CONFIG_PATH}/log4j.xml"/>
+            </bean>
+        </property>
+
         <property name="clientConnectorConfiguration">
             <bean class="org.apache.ignite.configuration.ClientConnectorConfiguration">
                 <property name="host" value="127.0.0.1"/>

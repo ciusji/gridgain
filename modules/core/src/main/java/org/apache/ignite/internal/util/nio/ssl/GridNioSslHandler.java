@@ -210,9 +210,11 @@ class GridNioSslHandler extends ReentrantLock {
         lock();
 
         try {
+            System.out.println("Handshake. Locked");
             boolean loop = true;
 
             while (loop) {
+                System.out.println("handshakeStatus=" + handshakeStatus);
                 switch (handshakeStatus) {
                     case NOT_HANDSHAKING:
                     case FINISHED: {
